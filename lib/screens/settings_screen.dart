@@ -20,8 +20,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _autoSyncIntervalLabels = ['5 分钟', '10 分钟', '30 分钟', '1 小时'];
 
   int _intervalSeconds = 30;
-  int _usageIntervalSeconds = 300;
-  int _autoSyncIntervalSeconds = 600;
+  int _usageIntervalSeconds = 900;
+  int _autoSyncIntervalSeconds = 900;
   bool _usageEventsEnabled = true;
   final _serverUrlController = TextEditingController();
   bool _saving = false;
@@ -36,8 +36,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _intervalSeconds = prefs.getInt(kPrefIntervalKey) ?? 30;
-      _usageIntervalSeconds = prefs.getInt(kPrefUsageIntervalKey) ?? 300;
-      _autoSyncIntervalSeconds = prefs.getInt(kPrefAutoSyncIntervalKey) ?? 600;
+      _usageIntervalSeconds = prefs.getInt(kPrefUsageIntervalKey) ?? 900;
+      _autoSyncIntervalSeconds = prefs.getInt(kPrefAutoSyncIntervalKey) ?? 900;
       _usageEventsEnabled = prefs.getBool(kPrefUsageEventsEnabledKey) ?? true;
       _serverUrlController.text =
           prefs.getString(kPrefServerUrl) ?? 'https://track-api.rethinkos.com';

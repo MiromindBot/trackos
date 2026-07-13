@@ -238,7 +238,7 @@ class SyncService {
 
     
     // 如果有数据上传成功，删除已同步的本地记录
-    if (!result.hasError && (result.locations > 0 || result.usageSummaries > 0 || result.usageEvents > 0 || result.moveEvents > 0 || result.paymentNotifications > 0)) {
+    if (error == null && (locations > 0 || usageSummaries > 0 || usageEvents > 0 || moveEvents > 0 || paymentNotifications > 0)) {
       await _storage.deleteSyncedRecords();
       debugPrint('[TrackOS] 清理已上传的本地记录');
     }

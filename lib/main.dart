@@ -7,13 +7,7 @@ import 'screens/settings_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initBackgroundService();
-  runApp(const TrackOsApp());    // 初始化浮窗截图功能
-    runApp(const TrackOsApp());
-    // 启动浮窗
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final floatingWidget = const FloatingScreenshotWidget();
-    });
-
+  runApp(const TrackOsApp());
 }
 
 class TrackOsApp extends StatelessWidget {
@@ -41,6 +35,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final FloatingScreenshotWidget _floatingWidget = const FloatingScreenshotWidget();
 
   static const _screens = [
     HomeScreen(),
@@ -48,11 +43,25 @@ class _MainShellState extends State<MainShell> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize floating screenshot window
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // The floating widget is already initialized via its constructor
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          ),
+          _floatingWidget, // Hidden widget that initializes the floating overlay
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,

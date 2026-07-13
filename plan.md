@@ -1,9 +1,29 @@
 # TrackOS 项目计划
 
-## 当前任务
+## 当前任务：修复三个功能的实现缺陷
 
-- [✓] 当手机内的数据上传成功后自动删除本地数据（已实现）
-- [✓] 应用使用采集间隔默认为15min（已实现）
-- [✓] 添加浮窗入口，可显示在所有应用之上，点击会给手机界面截图，保证格式为jpg，这些图片后续也会通过服务器api上传（已实现）
+### 任务1: 修复数据上传后自动删除本地数据的Bug ✓
+**文件**: `lib/services/sync_service.dart` (L240-243)
+- **问题**: `syncAllPending()` 中引用了未定义的 `result` 变量，导致编译错误
+- **修复**: 改为使用正确的局部变量 `error`、`locations`、`usageSummaries` 等
+- **存储层**: `storage_service.dart` 的 `deleteSyncedRecords()` 方法正确实现了按 synced=1 删除所有表记录
 
-**最后更新**: 2026-04-12 07:17:01
+### 任务2: 修复采集间隔默认为15min ✓
+**涉及文件**:
+- `lib/screens/settings_screen.dart`: 默认值从300→900，fallback值也同步修改
+- `lib/services/background_service.dart`: 默认值已经是900(正确)
+
+### 任务3: 重写浮窗截图功能 ✓
+**问题**: 
+- `floating_screenshot_widget.dart` 使用了不存在的API（`FloatingWindow(...)`, `.show()`, `Gravity`, `MotionEvent` 等）
+- `main.dart` 有重复的 `runApp()` 调用
+- `pubspec.yaml` 有重复依赖声明
+- `AndroidManifest.xml` 缺少浮窗权限和服务声明
+
+**修复**:
+- `lib/widgets/floating_screenshot_widget.dart`: 完全重写，使用正确的 `FloatingWindowManager.instance.createWindow()` API
+- `lib/main.dart`: 移除重复 runApp，集成 FloatingScreenshotWidget
+- `pubspec.yaml`: 移除重复的 path_provider 和 permission_handler 依赖
+- `android/app/src/main/AndroidManifest.xml`: 添加 SYSTEM_ALERT_WINDOW 权限、FloatingWindowService、BootReceiver
+
+**最后更新**: 2026-04-12
