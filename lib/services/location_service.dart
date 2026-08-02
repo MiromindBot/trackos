@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geolocator_platform_interface/geolocator_platform_interface.dart';
 
@@ -5,6 +7,9 @@ class LocationService {
   static final LocationService _instance = LocationService._internal();
   factory LocationService() => _instance;
   LocationService._internal();
+
+  // Method channel for native Android location service checks
+  static const _channel = MethodChannel('com.rethinkos.trackos/location');
 
   // Android-specific: force Android's built-in LocationManager (not GMS)
   static final _androidSettings = AndroidSettings(
@@ -45,12 +50,36 @@ class LocationService {
   }
 
   /// 检查系统位置服务（GPS 开关）是否启用
+  ///
+  /// 在 Android 上，使用原生 LocationManager 检查 GPS/NETWORK provider 状态，
+  /// 绕过 Google Play Services 的 FusedLocationProviderClient。
+  /// 这避免了因 Google Location Accuracy 关闭而误报"位置服务未开启"的问题。
+  ///
+  /// 在其他平台上，使用 Geolocator.isLocationServiceEnabled()。
   Future<bool> isLocationServiceEnabled() async {
+    if (Platform.isAndroid) {
+      try {
+        final result = await _channel.invokeMethod<bool>('isLocationServiceEnabled');
+        if (result != null) {
+          return result;
+        }
+      } catch (_) {
+        // Fall through to geolocator if native check fails
+      }
+    }
     return Geolocator.isLocationServiceEnabled();
   }
 
   /// 打开系统位置设置页面（GPS / 主位置开关）
   Future<bool> openLocationSettings() async {
+    if (Platform.isAndroid) {
+      try {
+        final result = await _channel.invokeMethod<bool>('openLocationSettings');
+        if (result == true) return true;
+      } catch (_) {
+        // Fall through to geolocator if native call fails
+      }
+    }
     return Geolocator.openLocationSettings();
   }
 

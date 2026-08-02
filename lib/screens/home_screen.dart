@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -41,7 +42,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   StreamSubscription? _locationSub;
   StreamSubscription? _statusSub;
   StreamSubscription? _usageSub;
-  StreamSubscription<ServiceStatus>? _locationServiceSubscription; // 新增：服务状态订阅
+  StreamSubscription<ServiceStatus>? _locationServiceSubscription;
+  Timer? _locationServiceTimer; // Android native check polling timer
 
   @override
   void initState() {
@@ -49,30 +51,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _init();
     
-    // 订阅位置服务状态变化
     final locationService = LocationService();
+    
+    if (Platform.isAndroid) {
+      // On Android, use periodic native checks instead of relying solely on
+      // the Geolocator service status stream, which may use Google Play Services
+      // and report "disabled" when Google Location Accuracy is off even though
+      // the system's native location/GPS is enabled.
+      _startNativeLocationServicePolling(locationService);
+    }
+    
+    // Still subscribe to geolocator stream as a supplementary signal.
+    // On Android, the native polling above serves as the source of truth.
     _locationServiceSubscription = locationService.serviceStatusStream.listen((status) {
       if (mounted) {
-        setState(() {
-          _locationServiceEnabled = status == ServiceStatus.enabled;
-        });
+        final enabled = status == ServiceStatus.enabled;
+        // On non-Android or if stream says enabled, trust it directly.
+        // On Android, if stream says disabled, the polling timer will correct it
+        // via native check; only update if enabled (don't override with false).
+        if (!Platform.isAndroid || enabled) {
+          setState(() {
+            _locationServiceEnabled = enabled;
+          });
+        }
       }
     });
+  }
+
+  /// Start periodic native location service status polling (Android only).
+  void _startNativeLocationServicePolling(LocationService locationService) {
+    // Check immediately
+    locationService.isLocationServiceEnabled().then((enabled) {
+      if (mounted) setState(() => _locationServiceEnabled = enabled);
+    });
+    // Then poll every 10 seconds
+    _locationServiceTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) {
+        locationService.isLocationServiceEnabled().then((enabled) {
+          if (mounted) setState(() => _locationServiceEnabled = enabled);
+        });
+      },
+    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _resumeRefresh();
-      // 重新检查服务状态
-      final locationService = LocationService();
-      locationService.isLocationServiceEnabled().then((enabled) {
-        if (mounted) {
-          setState(() {
-            _locationServiceEnabled = enabled;
-          });
-        }
-      });
     }
   }
 
@@ -226,7 +252,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _locationSub?.cancel();
     _statusSub?.cancel();
     _usageSub?.cancel();
-    _locationServiceSubscription?.cancel(); // 取消服务状态监听
+    _locationServiceSubscription?.cancel();
+    _locationServiceTimer?.cancel();
     super.dispose();
   }
 
@@ -275,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         title: const Text('需要开启系统位置服务'),
         content: const Text(
           '当前系统位置服务（GPS/定位总开关）未开启。\n\n'
-          '即使应用的位置权限已经是“始终允许”，只要系统定位总开关关闭，后台定位仍然无法工作。',
+          '即使应用的位置权限已经是"始终允许"，只要系统定位总开关关闭，后台定位仍然无法工作。',
         ),
         actions: [
           TextButton(
@@ -307,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         result.usageEvents == -1 ||
         result.moveEvents == -1 ||
         result.paymentNotifications == -1) {
-      _showSnack('未配置服务器 URL，请在“设置”中填写');
+      _showSnack('未配置服务器 URL，请在"设置"中填写');
     } else if (result.hasError) {
       _showSnack('同步失败：${result.error}');
     } else {
@@ -404,10 +431,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.cloud_upload),
-              label: const Text('立即同步到服务器'),
+                  : const Icon(Icons.cloud_sync_outlined),
+              label: Text(_syncing ? '同步中...' : '立即同步'),
             ),
-            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -445,10 +471,10 @@ class _PermissionCard extends StatelessWidget {
   final int moveEventCount;
   final int paymentNotificationCount;
   final int pendingPaymentNotificationCount;
-  final Future<void> Function() onOpenUsageSettings;
-  final Future<void> Function() onOpenNotificationSettings;
-  final Future<void> Function() onRefresh;
-  final Future<void> Function() onOpenLocationSettings;
+  final VoidCallback onOpenUsageSettings;
+  final VoidCallback onOpenNotificationSettings;
+  final VoidCallback onRefresh;
+  final VoidCallback onOpenLocationSettings;
 
   @override
   Widget build(BuildContext context) {
